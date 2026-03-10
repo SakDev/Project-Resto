@@ -1,26 +1,144 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  color-scheme: light;
+  --font-body: "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+  --font-display: "SF Pro Display", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+  --background: 210 20% 98%;
+  --foreground: 210 15% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 210 15% 10%;
+  --muted: 210 16% 95%;
+  --muted-foreground: 215 10% 42%;
+  --border: 214 15% 87%;
+  --primary: 214 18% 9%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 145 32% 91%;
+  --accent-foreground: 148 22% 20%;
+  --success: 145 42% 37%;
+  --warning: 45 98% 55%;
+  --danger: 0 72% 56%;
+  --surface-strong: 214 18% 9%;
+  --surface-soft: 145 26% 94%;
+  --highlight: 151 31% 44%;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: dark;
+    --background: 222 20% 9%;
+    --foreground: 210 20% 95%;
+    --card: 222 18% 12%;
+    --card-foreground: 210 20% 95%;
+    --muted: 222 14% 16%;
+    --muted-foreground: 214 12% 70%;
+    --border: 217 13% 24%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 214 18% 10%;
+    --accent: 150 24% 18%;
+    --accent-foreground: 145 34% 84%;
+    --success: 145 38% 47%;
+    --warning: 45 98% 61%;
+    --danger: 0 70% 62%;
+    --surface-strong: 210 24% 96%;
+    --surface-soft: 151 18% 16%;
+    --highlight: 151 35% 54%;
   }
 }
 
+* {
+  @apply border-border;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: hsl(var(--background));
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  @apply bg-background text-foreground antialiased;
+  font-family: var(--font-body), sans-serif;
+  background: hsl(var(--background));
+}
+
+#app-shell {
+  min-height: 100dvh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display), sans-serif;
+}
+
+.safe-px {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+.safe-pt {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+.safe-pb {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.tap-highlight-none {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  @apply transition-colors;
+}
+
+::selection {
+  @apply bg-primary/20 text-foreground;
+}
+
+@layer utilities {
+  .bg-shell {
+    background: hsl(var(--background));
+  }
+
+  .bg-soft-accent {
+    background: hsl(var(--accent));
+  }
+
+  .bg-ink {
+    background:
+      radial-gradient(circle at top right, hsl(0 0% 100% / 0.08), transparent 20%),
+      linear-gradient(160deg, hsl(214 18% 10%), hsl(214 20% 7%));
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.6) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.6) 1px, transparent 1px);
+    background-size: 28px 28px;
+    background-position: center;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  @layer utilities {
+    .bg-shell {
+      background: hsl(var(--background));
+    }
+
+    .bg-grid {
+      background-image:
+        linear-gradient(hsl(var(--border) / 0.42) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(var(--border) / 0.42) 1px, transparent 1px);
+    }
+  }
 }
