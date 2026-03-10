@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ChangeEvent, type KeyboardEvent, type PointerEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, MapPin, Meh, Phone, RotateCcw, X } from "lucide-react";
 
@@ -18,34 +18,56 @@ import type {
 } from "@/features/mock/types";
 
 export function Solo49th9thScreen() {
+  const cuisineCommitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cuisineSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const restaurantCommitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restaurantSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const [step, setStep] = useState<Step>("prefs");
   const [timeSlot, setTimeSlot] = useState<TimeSlot>("dinner");
   const [maxDistanceM, setMaxDistanceM] = useState(1000);
   const [cuisinePrefs, setCuisinePrefs] = useState<Record<string, CuisinePreference>>({});
   const [cuisineIndex, setCuisineIndex] = useState(0);
   const [mustBeOpen, setMustBeOpen] = useState(true);
+  const [cuisineSwipeOffset, setCuisineSwipeOffset] = useState(0);
+  const [cuisineSwipeLift, setCuisineSwipeLift] = useState(0);
+  const [cuisineCardOpacity, setCuisineCardOpacity] = useState(1);
+  const [cuisineCardScale, setCuisineCardScale] = useState(1);
+  const [isCuisineAnimating, setIsCuisineAnimating] = useState(false);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [votes, setVotes] = useState<Record<string, VoteRecord>>({});
-  const [pendingLean, setPendingLean] = useState<LeanChoice>("ehh");
-  const [pendingChoice, setPendingChoice] = useState<VoteChoice | null>(null);
+  const [mehLean, setMehLean] = useState<LeanChoice>("meh");
+  const [restaurantSwipeOffset, setRestaurantSwipeOffset] = useState(0);
+  const [restaurantSwipeLift, setRestaurantSwipeLift] = useState(0);
+  const [restaurantCardOpacity, setRestaurantCardOpacity] = useState(1);
+  const [restaurantCardScale, setRestaurantCardScale] = useState(1);
+  const [isRestaurantAnimating, setIsRestaurantAnimating] = useState(false);
 
-  const yesCuisines = HOT_CUISINES.filter((cuisine) => cuisinePrefs[cuisine] === "yes");
   const cuisineCurrent = HOT_CUISINES[cuisineIndex];
+  const cuisineNext = HOT_CUISINES[cuisineIndex + 1];
   const cuisineDoneCount = Object.keys(cuisinePrefs).length;
+  const isCuisineDragging = cuisineSwipeStartRef.current !== null;
+  const isRestaurantDragging = restaurantSwipeStartRef.current !== null;
 
-  const filtered = RESTAURANTS_49TH_9TH.filter((restaurant) => {
-    if (restaurant.distanceM > maxDistanceM) return false;
-    const pref = cuisinePrefs[restaurant.cuisine] ?? "maybe";
-    if (pref === "no") return false;
-    if (yesCuisines.length > 0 && pref !== "yes") return false;
-    if (mustBeOpen && !isOpenFor(restaurant.cuisine, timeSlot)) return false;
-    return true;
-  });
+  function getFilteredRestaurants(preferences: Record<string, CuisinePreference>) {
+    const yesSelections = HOT_CUISINES.filter((cuisine) => preferences[cuisine] === "yes");
+
+    return RESTAURANTS_49TH_9TH.filter((restaurant) => {
+      if (restaurant.distanceM > maxDistanceM) return false;
+      const pref = preferences[restaurant.cuisine] ?? "meh";
+      if (pref === "no") return false;
+      if (yesSelections.length > 0 && pref !== "yes") return false;
+      if (mustBeOpen && !isOpenFor(restaurant.cuisine, timeSlot)) return false;
+      return true;
+    });
+  }
+
+  const filtered = getFilteredRestaurants(cuisinePrefs);
 
   const current = filtered[currentIndex];
   const total = filtered.length;
   const votedCount = Object.keys(votes).length;
+  const mehLeanValue = mehLean === "lean-no" ? -1 : mehLean === "lean-yes" ? 1 : 0;
 
   const ranked = filtered
     .map((restaurant) => {
@@ -59,17 +81,94 @@ export function Solo49th9thScreen() {
   const winner = ranked[0];
   const backups = ranked.slice(1, 6);
 
-  function voteCuisine(pref: CuisinePreference) {
+  useEffect(() => {
+    return () => {
+      if (cuisineCommitTimeoutRef.current) {
+        clearTimeout(cuisineCommitTimeoutRef.current);
+      }
+
+      if (restaurantCommitTimeoutRef.current) {
+        clearTimeout(restaurantCommitTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function resetCuisineMotion() {
+    setCuisineSwipeOffset(0);
+    setCuisineSwipeLift(0);
+    setCuisineCardOpacity(1);
+    setCuisineCardScale(1);
+    setIsCuisineAnimating(false);
+  }
+
+  function resetRestaurantMotion() {
+    setRestaurantSwipeOffset(0);
+    setRestaurantSwipeLift(0);
+    setRestaurantCardOpacity(1);
+    setRestaurantCardScale(1);
+    setIsRestaurantAnimating(false);
+  }
+
+  function beginRestaurantVoteStep() {
+    setVotes({});
+    setCurrentIndex(0);
+    setMehLean("meh");
+    resetRestaurantMotion();
+    setStep("vote");
+  }
+
+  function completeCuisineVote(pref: CuisinePreference) {
     if (!cuisineCurrent) return;
-    setCuisinePrefs((prev) => ({ ...prev, [cuisineCurrent]: pref }));
+    const nextPrefs = { ...cuisinePrefs, [cuisineCurrent]: pref };
+    setCuisinePrefs(nextPrefs);
+
     if (cuisineIndex < HOT_CUISINES.length - 1) {
       setCuisineIndex((value) => value + 1);
+    } else {
+      setCuisineIndex(HOT_CUISINES.length);
+      if (getFilteredRestaurants(nextPrefs).length > 0) {
+        beginRestaurantVoteStep();
+      }
     }
+
+    resetCuisineMotion();
+  }
+
+  function queueCuisineVote(pref: CuisinePreference) {
+    if (!cuisineCurrent || isCuisineAnimating) return;
+
+    setIsCuisineAnimating(true);
+
+    if (pref === "yes") {
+      setCuisineSwipeOffset(220);
+      setCuisineSwipeLift(-8);
+      setCuisineCardScale(1.02);
+      setCuisineCardOpacity(0);
+    } else if (pref === "no") {
+      setCuisineSwipeOffset(-220);
+      setCuisineSwipeLift(-8);
+      setCuisineCardScale(1.02);
+      setCuisineCardOpacity(0);
+    } else {
+      setCuisineSwipeOffset(0);
+      setCuisineSwipeLift(28);
+      setCuisineCardScale(0.96);
+      setCuisineCardOpacity(0);
+    }
+
+    if (cuisineCommitTimeoutRef.current) {
+      clearTimeout(cuisineCommitTimeoutRef.current);
+    }
+
+    cuisineCommitTimeoutRef.current = setTimeout(() => {
+      completeCuisineVote(pref);
+    }, 180);
   }
 
   function resetCuisineDeck() {
     setCuisinePrefs({});
     setCuisineIndex(0);
+    resetCuisineMotion();
   }
 
   function prevCuisine() {
@@ -77,32 +176,230 @@ export function Solo49th9thScreen() {
   }
 
   function startFlow() {
-    setVotes({});
-    setCurrentIndex(0);
-    setPendingChoice(null);
-    setPendingLean("ehh");
-    setStep("vote");
+    beginRestaurantVoteStep();
   }
 
-  function castAndNext(vote: VoteChoice, lean: LeanChoice = "ehh") {
+  function completeRestaurantVote(vote: VoteChoice, lean: LeanChoice = "meh") {
     if (!current) return;
     setVotes((prev) => ({ ...prev, [current.id]: { vote, lean } }));
-    setPendingChoice(null);
-    setPendingLean("ehh");
+    setMehLean("meh");
     if (currentIndex >= filtered.length - 1) {
+      resetRestaurantMotion();
       setStep("results");
       return;
     }
     setCurrentIndex((value) => value + 1);
+    resetRestaurantMotion();
+  }
+
+  function queueRestaurantVote(vote: VoteChoice) {
+    if (!current || isRestaurantAnimating) return;
+
+    setIsRestaurantAnimating(true);
+
+    if (vote === "yes") {
+      setRestaurantSwipeOffset(220);
+      setRestaurantSwipeLift(-8);
+      setRestaurantCardScale(1.02);
+      setRestaurantCardOpacity(0);
+    } else if (vote === "no") {
+      setRestaurantSwipeOffset(-220);
+      setRestaurantSwipeLift(-8);
+      setRestaurantCardScale(1.02);
+      setRestaurantCardOpacity(0);
+    } else {
+      setRestaurantSwipeOffset(0);
+      setRestaurantSwipeLift(34);
+      setRestaurantCardScale(0.97);
+      setRestaurantCardOpacity(0);
+    }
+
+    if (restaurantCommitTimeoutRef.current) {
+      clearTimeout(restaurantCommitTimeoutRef.current);
+    }
+
+    restaurantCommitTimeoutRef.current = setTimeout(() => {
+      completeRestaurantVote(vote, vote === "meh" ? mehLean : "meh");
+    }, 180);
   }
 
   function restartAll() {
     setStep("prefs");
     setVotes({});
     setCurrentIndex(0);
-    setPendingChoice(null);
-    setPendingLean("ehh");
+    setMehLean("meh");
     resetCuisineDeck();
+    resetRestaurantMotion();
+  }
+
+  function handleCuisinePointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (isCuisineAnimating) return;
+    cuisineSwipeStartRef.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setCuisineSwipeOffset(0);
+    setCuisineSwipeLift(0);
+    setCuisineCardOpacity(1);
+    setCuisineCardScale(1);
+  }
+
+  function handleCuisinePointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (!cuisineSwipeStartRef.current) return;
+    const deltaX = event.clientX - cuisineSwipeStartRef.current.x;
+    const deltaY = event.clientY - cuisineSwipeStartRef.current.y;
+
+    if (deltaY > 0 && deltaY > Math.abs(deltaX)) {
+      setCuisineSwipeOffset(0);
+      setCuisineSwipeLift(Math.min(84, deltaY));
+      return;
+    }
+
+    setCuisineSwipeOffset(Math.max(-72, Math.min(72, deltaX)));
+    setCuisineSwipeLift(Math.abs(deltaX) > 24 ? -4 : 0);
+  }
+
+  function handleCuisinePointerUp(event: PointerEvent<HTMLDivElement>) {
+    if (!cuisineSwipeStartRef.current) return;
+
+    const deltaX = event.clientX - cuisineSwipeStartRef.current.x;
+    const deltaY = event.clientY - cuisineSwipeStartRef.current.y;
+
+    cuisineSwipeStartRef.current = null;
+
+    if (deltaY > 72 && deltaY > Math.abs(deltaX)) {
+      queueCuisineVote("meh");
+      return;
+    }
+
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 60) {
+      queueCuisineVote(deltaX > 0 ? "yes" : "no");
+      return;
+    }
+
+    resetCuisineMotion();
+  }
+
+  function handleCuisinePointerCancel() {
+    cuisineSwipeStartRef.current = null;
+    resetCuisineMotion();
+  }
+
+  function handleCuisineKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (isCuisineAnimating) return;
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      queueCuisineVote("no");
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      queueCuisineVote("yes");
+      return;
+    }
+
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      queueCuisineVote("meh");
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      return;
+    }
+  }
+
+  function handleRestaurantLeanChange(event: ChangeEvent<HTMLInputElement>) {
+    const value = Number(event.target.value);
+    if (value < 0) {
+      setMehLean("lean-no");
+      return;
+    }
+
+    if (value > 0) {
+      setMehLean("lean-yes");
+      return;
+    }
+
+    setMehLean("meh");
+  }
+
+  function handleRestaurantPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (isRestaurantAnimating) return;
+    restaurantSwipeStartRef.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setRestaurantSwipeOffset(0);
+    setRestaurantSwipeLift(0);
+    setRestaurantCardOpacity(1);
+    setRestaurantCardScale(1);
+  }
+
+  function handleRestaurantPointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (!restaurantSwipeStartRef.current) return;
+    const deltaX = event.clientX - restaurantSwipeStartRef.current.x;
+    const deltaY = event.clientY - restaurantSwipeStartRef.current.y;
+
+    if (deltaY > 0 && deltaY > Math.abs(deltaX)) {
+      setRestaurantSwipeOffset(0);
+      setRestaurantSwipeLift(Math.min(84, deltaY));
+      return;
+    }
+
+    setRestaurantSwipeOffset(Math.max(-72, Math.min(72, deltaX)));
+    setRestaurantSwipeLift(Math.abs(deltaX) > 24 ? -4 : 0);
+  }
+
+  function handleRestaurantPointerUp(event: PointerEvent<HTMLDivElement>) {
+    if (!restaurantSwipeStartRef.current) return;
+
+    const deltaX = event.clientX - restaurantSwipeStartRef.current.x;
+    const deltaY = event.clientY - restaurantSwipeStartRef.current.y;
+
+    restaurantSwipeStartRef.current = null;
+
+    if (deltaY > 72 && deltaY > Math.abs(deltaX)) {
+      queueRestaurantVote("meh");
+      return;
+    }
+
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 60) {
+      queueRestaurantVote(deltaX > 0 ? "yes" : "no");
+      return;
+    }
+
+    resetRestaurantMotion();
+  }
+
+  function handleRestaurantPointerCancel() {
+    restaurantSwipeStartRef.current = null;
+    resetRestaurantMotion();
+  }
+
+  function handleRestaurantKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (isRestaurantAnimating) return;
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      queueRestaurantVote("no");
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      queueRestaurantVote("yes");
+      return;
+    }
+
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " " || event.key.toLowerCase() === "m") {
+      event.preventDefault();
+      queueRestaurantVote("meh");
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+    }
   }
 
   return (
@@ -115,9 +412,9 @@ export function Solo49th9thScreen() {
                 Solo real-data mock
               </p>
               <h1 className="mt-1 font-display text-3xl font-semibold tracking-[-0.04em] text-foreground">
-                9th Ave & 49th St
+                Hell&apos;s Kitchen
               </h1>
-              <p className="mt-1 text-sm text-muted-foreground">50+ nearby restaurants, one-person end-to-end flow.</p>
+              <p className="mt-1 text-sm text-muted-foreground">West 49th Street one-person flow for Hell&apos;s Kitchen dinner picks.</p>
             </div>
             <span className="rounded-[1rem] border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground">
               {RESTAURANTS_49TH_9TH.length} loaded
@@ -127,7 +424,7 @@ export function Solo49th9thScreen() {
           <Card>
             <CardContent className="p-4 text-sm text-muted-foreground">
               Source: OpenStreetMap via Overpass around
-              <span className="font-semibold text-foreground"> West 49th St & 9th Ave </span>
+              <span className="font-semibold text-foreground"> Hell&apos;s Kitchen, centered near West 49th St & 9th Ave </span>
               (<span className="font-semibold text-foreground">40.7630378, -73.9896819</span>) within
               <span className="font-semibold text-foreground"> 1609m </span>(1 mile), fetched on
               <span className="font-semibold text-foreground"> 2026-03-08</span>.
@@ -189,32 +486,65 @@ export function Solo49th9thScreen() {
 
                     {cuisineCurrent ? (
                       <>
-                        <div className="rounded-[1rem] border border-border bg-muted p-4 text-center">
-                          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                            Current cuisine
+                        <div
+                          role="group"
+                          aria-label={`Cuisine preference card for ${cuisineCurrent.replace("_", " ")}`}
+                          tabIndex={0}
+                          onPointerDown={handleCuisinePointerDown}
+                          onPointerMove={handleCuisinePointerMove}
+                          onPointerUp={handleCuisinePointerUp}
+                          onPointerCancel={handleCuisinePointerCancel}
+                          onKeyDown={handleCuisineKeyDown}
+                          className="rounded-[1.2rem] border border-border bg-muted p-4 outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
+                          style={{
+                            opacity: cuisineCardOpacity,
+                            transform: `translate(${cuisineSwipeOffset}px, ${cuisineSwipeLift}px) rotate(${cuisineSwipeOffset / 16}deg) scale(${cuisineCardScale})`,
+                            transition: isCuisineDragging ? "none" : "transform 180ms ease, opacity 180ms ease",
+                            touchAction: "pan-y",
+                          }}
+                        >
+                          <div className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            <span className="rounded-full border border-border bg-card px-2.5 py-1">No</span>
+                            <span>Swipe or use arrow keys</span>
+                            <span className="rounded-full border border-[hsl(var(--highlight))/0.28] bg-accent px-2.5 py-1 text-accent-foreground">
+                              Yes
+                            </span>
+                          </div>
+                          <p className="mt-5 text-center text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                            Cuisine pass
                           </p>
-                          <p className="mt-2 text-xl font-semibold text-foreground">{cuisineCurrent.replace("_", " ")}</p>
-                          <p className="mt-2 text-sm text-muted-foreground">
-                            Vote exactly like restaurants: no, maybe, or yes.
+                          <p className="mt-2 text-center text-2xl font-semibold text-foreground">
+                            {cuisineCurrent.replace("_", " ")}
                           </p>
+                          <p className="mt-2 text-center text-sm text-muted-foreground">
+                            Left says no. Down or Enter marks meh. Right says yes.
+                          </p>
+                          <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-muted-foreground">
+                            <div className="rounded-[0.95rem] border border-border bg-card px-3 py-2 text-center">
+                              {cuisineNext ? `Up next: ${cuisineNext.replace("_", " ")}` : "Last cuisine"}
+                            </div>
+                            <div className="rounded-[0.95rem] border border-border bg-card px-3 py-2 text-center">
+                              {cuisineDoneCount} of {HOT_CUISINES.length} marked
+                            </div>
+                          </div>
                         </div>
                         <div className="mt-3 grid grid-cols-3 gap-2">
                           <button
-                            onClick={() => voteCuisine("no")}
+                            onClick={() => queueCuisineVote("no")}
                             className="flex min-h-11 items-center justify-center gap-1 rounded-[0.85rem] border border-border bg-card text-xs font-semibold text-foreground"
                           >
                             <X className="h-4 w-4" />
                             No
                           </button>
                           <button
-                            onClick={() => voteCuisine("maybe")}
+                            onClick={() => queueCuisineVote("meh")}
                             className="flex min-h-11 items-center justify-center gap-1 rounded-[0.85rem] border border-border bg-card text-xs font-semibold text-foreground"
                           >
                             <Meh className="h-4 w-4" />
-                            Maybe
+                            Meh
                           </button>
                           <button
-                            onClick={() => voteCuisine("yes")}
+                            onClick={() => queueCuisineVote("yes")}
                             className="flex min-h-11 items-center justify-center gap-1 rounded-[0.85rem] border border-[hsl(var(--highlight))/0.35] bg-accent text-xs font-semibold text-accent-foreground"
                           >
                             <Check className="h-4 w-4" />
@@ -222,9 +552,13 @@ export function Solo49th9thScreen() {
                           </button>
                         </div>
                       </>
+                    ) : total > 0 ? (
+                      <div className="rounded-[1rem] border border-border bg-muted p-4 text-sm text-muted-foreground">
+                        Cuisine pass complete. Moving into restaurant voting keeps the flow tighter.
+                      </div>
                     ) : (
                       <div className="rounded-[1rem] border border-border bg-muted p-4 text-sm text-muted-foreground">
-                        Cuisine deck complete. You can start voting restaurants or go back and adjust.
+                        Cuisine pass complete, but nothing is left in the restaurant pool. Reset or loosen filters.
                       </div>
                     )}
 
@@ -264,13 +598,20 @@ export function Solo49th9thScreen() {
                   </p>
                 </div>
 
-                <ButtonLink
-                  href="#"
-                  className={`w-full ${filtered.length === 0 ? "pointer-events-none opacity-40" : ""}`}
-                  variant="primary"
-                >
-                  <span onClick={startFlow}>Start voting</span>
-                </ButtonLink>
+                {cuisineDoneCount < HOT_CUISINES.length ? (
+                  <div className="rounded-[1rem] border border-border bg-card p-3 text-sm text-muted-foreground">
+                    Finish the cuisine pass and the restaurant deck will open automatically.
+                  </div>
+                ) : (
+                  <button
+                    onClick={startFlow}
+                    className={`inline-flex min-h-12 w-full items-center justify-center rounded-[1rem] bg-foreground px-4 text-sm font-semibold text-background ${
+                      filtered.length === 0 ? "pointer-events-none opacity-40" : ""
+                    }`}
+                  >
+                    Jump into restaurant voting
+                  </button>
+                )}
               </CardContent>
             </Card>
           ) : null}
@@ -303,60 +644,84 @@ export function Solo49th9thScreen() {
                   </div>
                 </div>
 
+                <div
+                  role="group"
+                  aria-label={`Restaurant vote card for ${current.name}`}
+                  tabIndex={0}
+                  onPointerDown={handleRestaurantPointerDown}
+                  onPointerMove={handleRestaurantPointerMove}
+                  onPointerUp={handleRestaurantPointerUp}
+                  onPointerCancel={handleRestaurantPointerCancel}
+                  onKeyDown={handleRestaurantKeyDown}
+                  className="rounded-[1.2rem] border border-border bg-muted p-4 outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
+                  style={{
+                    opacity: restaurantCardOpacity,
+                    transform: `translate(${restaurantSwipeOffset}px, ${restaurantSwipeLift}px) rotate(${restaurantSwipeOffset / 18}deg) scale(${restaurantCardScale})`,
+                    transition: isRestaurantDragging ? "none" : "transform 180ms ease, opacity 180ms ease",
+                    touchAction: "pan-y",
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    <span className="rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-danger">No</span>
+                    <span>Swipe card or use arrow keys</span>
+                    <span className="rounded-full border border-[hsl(var(--highlight))/0.28] bg-accent px-2.5 py-1 text-accent-foreground">
+                      Yes
+                    </span>
+                  </div>
+                  <p className="mt-5 text-center text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Restaurant pass
+                  </p>
+                  <p className="mt-2 text-center text-2xl font-semibold text-foreground">{current.name}</p>
+                  <p className="mt-2 text-center text-sm text-muted-foreground">
+                    Swipe down or hit `M` for meh. Up arrow is intentionally unused.
+                  </p>
+                </div>
+
+                <div className="rounded-[1rem] border border-border bg-card p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-foreground">Meh bias</p>
+                    <p className="text-sm font-medium text-muted-foreground">{mehLean === "lean-no" ? "Lean no" : mehLean === "lean-yes" ? "Lean yes" : "Plain meh"}</p>
+                  </div>
+                  <input
+                    type="range"
+                    min={-1}
+                    max={1}
+                    step={1}
+                    value={mehLeanValue}
+                    onChange={handleRestaurantLeanChange}
+                    className="mt-3 h-8 w-full accent-foreground"
+                    aria-label="Meh bias"
+                  />
+                  <div className="mt-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    <span>Lean no</span>
+                    <span>Meh</span>
+                    <span>Lean yes</span>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-3 gap-3">
                   <button
-                    onClick={() => castAndNext("no")}
-                    className="flex min-h-14 flex-col items-center justify-center rounded-[1.1rem] border border-border bg-card text-foreground"
+                    onClick={() => queueRestaurantVote("no")}
+                    className="flex min-h-14 flex-col items-center justify-center rounded-[1.1rem] border border-danger/30 bg-danger/10 text-foreground"
                   >
                     <X className="h-5 w-5" />
                     <span className="mt-1 text-xs font-semibold">No</span>
                   </button>
                   <button
-                    onClick={() => setPendingChoice("ehh")}
-                    className={`flex min-h-14 flex-col items-center justify-center rounded-[1.1rem] border ${
-                      pendingChoice === "ehh"
-                        ? "border-[hsl(var(--highlight))/0.3] bg-accent text-accent-foreground"
-                        : "border-border bg-card text-foreground"
-                    }`}
+                    onClick={() => queueRestaurantVote("meh")}
+                    className="flex min-h-14 flex-col items-center justify-center rounded-[1.1rem] border border-border bg-muted text-foreground"
                   >
                     <Meh className="h-5 w-5" />
-                    <span className="mt-1 text-xs font-semibold">Ehh</span>
+                    <span className="mt-1 text-xs font-semibold">Meh</span>
                   </button>
                   <button
-                    onClick={() => castAndNext("yes")}
+                    onClick={() => queueRestaurantVote("yes")}
                     className="flex min-h-14 flex-col items-center justify-center rounded-[1.1rem] bg-foreground text-background"
                   >
                     <Check className="h-5 w-5" />
                     <span className="mt-1 text-xs font-semibold">Yes</span>
                   </button>
                 </div>
-
-                {pendingChoice === "ehh" ? (
-                  <div className="rounded-[1.2rem] border border-[hsl(var(--highlight))/0.2] bg-soft-accent p-3">
-                    <p className="text-sm font-semibold text-foreground">Refine `Ehh`</p>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      {(["lean-no", "ehh", "lean-yes"] as const).map((lean) => (
-                        <button
-                          key={lean}
-                          onClick={() => setPendingLean(lean)}
-                          className={`min-h-10 rounded-[0.9rem] border px-2 text-xs font-semibold ${
-                            pendingLean === lean
-                              ? "border-foreground bg-foreground text-background"
-                              : "border-border bg-card text-foreground"
-                          }`}
-                        >
-                          {lean === "lean-no" ? "Lean no" : lean === "ehh" ? "Plain ehh" : "Lean yes"}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => castAndNext("ehh", pendingLean)}
-                      className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-[0.95rem] bg-foreground px-3 text-sm font-semibold text-background"
-                    >
-                      Save Ehh & Next
-                    </button>
-                  </div>
-                ) : null}
 
                 <button
                   onClick={() => setStep("results")}
@@ -408,8 +773,8 @@ export function Solo49th9thScreen() {
                   <a
                     href={
                       winner
-                        ? `https://maps.apple.com/?q=${encodeURIComponent(winner.name + " near 9th Ave 49th St NYC")}`
-                        : "https://maps.apple.com/?q=9th+Ave+49th+St+NYC+restaurants"
+                        ? `https://maps.apple.com/?q=${encodeURIComponent(winner.name + " Hell's Kitchen NYC")}`
+                        : "https://maps.apple.com/?q=Hell's+Kitchen+NYC+restaurants"
                     }
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[0.95rem] bg-foreground px-3 text-sm font-semibold text-background"
                   >
@@ -436,12 +801,9 @@ export function Solo49th9thScreen() {
             </Card>
           ) : null}
 
-          <div className="grid grid-cols-2 gap-3">
-            <ButtonLink href="/mock/10019-real-preview" variant="secondary" className="w-full">
-              10019 mock
-            </ButtonLink>
+          <div className="grid grid-cols-1 gap-3">
             <ButtonLink href="/mock/mobile-preview" variant="ghost" className="w-full">
-              Previous mock
+              Back to preview
             </ButtonLink>
           </div>
 

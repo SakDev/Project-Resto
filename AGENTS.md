@@ -144,7 +144,7 @@ Swiping is good, but **swipe can never be the only interaction**.
 Always provide:
 
 - Yes
-- Maybe
+- Meh
 - No
 
 as visible tap targets.
@@ -221,7 +221,7 @@ Use **simple, transparent scoring**.
 Default logic:
 
 - Yes = 1.0
-- Maybe = 0.5
+- Meh = 0.5
 - No = veto
 
 If any user votes no, that restaurant is excluded in strict-veto mode.

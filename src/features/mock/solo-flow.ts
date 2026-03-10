@@ -31,8 +31,12 @@ export function estimatePrice(cuisine: string, distanceM: number) {
 export function scoreVote(vote: VoteRecord) {
   if (vote.vote === "no") return Number.NEGATIVE_INFINITY;
   if (vote.vote === "yes") return 1;
+  if (vote.vote === "meh") {
+    if (vote.lean === "lean-no") return 0.35;
+    if (vote.lean === "lean-yes") return 0.65;
+    return 0.5;
+  }
   if (vote.lean === "lean-no") return 0.35;
   if (vote.lean === "lean-yes") return 0.65;
   return 0.5;
 }
-

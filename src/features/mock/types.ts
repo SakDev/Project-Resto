@@ -1,8 +1,8 @@
 export type Step = "prefs" | "vote" | "results";
-export type VoteChoice = "yes" | "ehh" | "no";
-export type LeanChoice = "lean-no" | "ehh" | "lean-yes";
+export type VoteChoice = "yes" | "meh" | "no";
+export type LeanChoice = "lean-no" | "meh" | "lean-yes";
 export type TimeSlot = "lunch" | "dinner" | "late";
-export type CuisinePreference = "yes" | "maybe" | "no";
+export type CuisinePreference = "yes" | "meh" | "no";
 
 export type VoteRecord = {
   vote: VoteChoice;
@@ -18,7 +18,6 @@ export type RestaurantSeed = {
 
 export const LEAN_LABELS: Record<LeanChoice, string> = {
   "lean-no": "leaning no",
-  ehh: "plain ehh",
+  meh: "plain meh",
   "lean-yes": "leaning yes",
 };
-

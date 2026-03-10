@@ -14,7 +14,7 @@ const roomMoments = [
   {
     step: "02",
     title: "Everyone votes",
-    note: "Yes, ehh, and no stay visible on every card.",
+    note: "Yes, meh, and no stay visible on every card.",
   },
   {
     step: "03",
@@ -27,7 +27,7 @@ const productNotes = [
   {
     icon: Vote,
     title: "Explainable scoring",
-    note: "Yes = 1, ehh = 0.5, no = veto when strict mode is on.",
+    note: "Yes = 1, meh = 0.5, no = veto when strict mode is on.",
   },
   {
     icon: Users,
@@ -177,10 +177,10 @@ export default function Home() {
                   </p>
                 </div>
                 <Link
-                  href="/mock/mobile-preview"
+                  href="/mock/hells-kitchen"
                   className="inline-flex items-center gap-2 text-sm font-semibold text-foreground"
                 >
-                  Preview the mock voting screen
+                  Preview the Hell&apos;s Kitchen mock
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </CardContent>

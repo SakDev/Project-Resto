@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, MapPin, Meh, MoveHorizontal, Phone, Star, Users, X } from "lucide-react";
+import { Check, MapPin, Meh, Phone, Star, Users, X } from "lucide-react";
 
 import { ButtonLink } from "@/components/ui/button-link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,7 @@ const mockRestaurants = [
     cuisine: "Italian",
     rating: 4.8,
     eta: "12 min",
-    match: "4 yes · 1 ehh · 0 no",
+    match: "4 yes · 1 meh · 0 no",
   },
   {
     id: "2",
@@ -21,7 +21,7 @@ const mockRestaurants = [
     cuisine: "Korean BBQ",
     rating: 4.7,
     eta: "15 min",
-    match: "3 yes · 2 ehh",
+    match: "3 yes · 2 meh",
   },
   {
     id: "3",
@@ -29,29 +29,26 @@ const mockRestaurants = [
     cuisine: "Mexican",
     rating: 4.6,
     eta: "9 min",
-    match: "2 yes · 2 ehh · 1 no",
+    match: "2 yes · 2 meh · 1 no",
   },
 ];
 
-type VoteChoice = "no" | "ehh" | "yes";
-type LeanChoice = "lean-no" | "ehh" | "lean-yes";
+type VoteChoice = "no" | "meh" | "yes";
+type LeanChoice = "lean-no" | "meh" | "lean-yes";
 
 const leanLabels: Record<LeanChoice, string> = {
   "lean-no": "leaning no",
-  ehh: "plain ehh",
+  meh: "plain meh",
   "lean-yes": "leaning yes",
 };
 
 export default function MockMobilePreviewPage() {
   const featured = mockRestaurants[0];
-  const [voteChoice, setVoteChoice] = useState<VoteChoice>("ehh");
-  const [leanChoice, setLeanChoice] = useState<LeanChoice>("ehh");
+  const [voteChoice, setVoteChoice] = useState<VoteChoice>("meh");
+  const [mehLean, setMehLean] = useState<LeanChoice>("meh");
 
   function chooseVote(choice: VoteChoice) {
     setVoteChoice(choice);
-    if (choice !== "ehh") {
-      setLeanChoice("ehh");
-    }
   }
 
   return (
@@ -73,14 +70,9 @@ export default function MockMobilePreviewPage() {
           </div>
 
           <div className="flex justify-end">
-            <div className="flex gap-2">
-              <ButtonLink href="/mock/10019-real-preview" variant="secondary" className="min-h-10 px-3 text-xs">
-                Try ZIP 10019
-              </ButtonLink>
-              <ButtonLink href="/mock/49th-9th-solo" variant="secondary" className="min-h-10 px-3 text-xs">
-                Try 9th & 49th solo
-              </ButtonLink>
-            </div>
+            <ButtonLink href="/mock/hells-kitchen" variant="secondary" className="min-h-10 px-3 text-xs">
+              Try Hell&apos;s Kitchen
+            </ButtonLink>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
@@ -149,15 +141,15 @@ export default function MockMobilePreviewPage() {
                   <span className="mt-1 text-xs font-semibold">No</span>
                 </button>
                 <button
-                  onClick={() => chooseVote("ehh")}
+                  onClick={() => chooseVote("meh")}
                   className={`flex min-h-14 flex-col items-center justify-center rounded-[1.1rem] border ${
-                    voteChoice === "ehh"
-                      ? "border-[hsl(var(--highlight))/0.3] bg-accent text-accent-foreground"
+                    voteChoice === "meh"
+                      ? "border-border bg-muted text-foreground"
                       : "border-border bg-card text-foreground"
                   }`}
                 >
                   <Meh className="h-5 w-5" />
-                  <span className="mt-1 text-xs font-semibold">Ehh</span>
+                  <span className="mt-1 text-xs font-semibold">Meh</span>
                 </button>
                 <button
                   onClick={() => chooseVote("yes")}
@@ -170,35 +162,30 @@ export default function MockMobilePreviewPage() {
                 </button>
               </div>
 
-              {voteChoice === "ehh" ? (
-                <div className="rounded-[1.25rem] border border-[hsl(var(--highlight))/0.2] bg-soft-accent p-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                    <MoveHorizontal className="h-4 w-4" />
-                    Dial in the middle
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Keep the main vote fast, then sharpen the gray area only when someone taps `Ehh`.
-                  </p>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    {(["lean-no", "ehh", "lean-yes"] as const).map((lean) => (
-                      <button
-                        key={lean}
-                        onClick={() => setLeanChoice(lean)}
-                        className={`min-h-11 rounded-[0.95rem] border px-3 text-xs font-semibold ${
-                          leanChoice === lean
-                            ? "border-foreground bg-foreground text-background"
-                            : "border-border bg-card text-foreground"
-                        }`}
-                      >
-                        {lean === "lean-no" ? "Lean no" : lean === "ehh" ? "Plain ehh" : "Lean yes"}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mt-3 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Current: {leanLabels[leanChoice]}
-                  </p>
+              <div className="rounded-[1.25rem] border border-border bg-card p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-foreground">Meh bias</p>
+                  <p className="text-sm font-medium text-muted-foreground">{leanLabels[mehLean]}</p>
                 </div>
-              ) : null}
+                <input
+                  type="range"
+                  min={-1}
+                  max={1}
+                  step={1}
+                  value={mehLean === "lean-no" ? -1 : mehLean === "lean-yes" ? 1 : 0}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    setMehLean(next < 0 ? "lean-no" : next > 0 ? "lean-yes" : "meh");
+                  }}
+                  className="mt-3 h-8 w-full accent-foreground"
+                  aria-label="Meh bias"
+                />
+                <div className="mt-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <span>Lean no</span>
+                  <span>Meh</span>
+                  <span>Lean yes</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
 

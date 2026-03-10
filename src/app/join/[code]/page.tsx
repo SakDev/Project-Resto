@@ -100,7 +100,7 @@ export default async function JoinRoomPage({ params }: JoinPageProps) {
               <ButtonLink href="/" variant="secondary" className="w-full">
                 Change link
               </ButtonLink>
-              <ButtonLink href="/mock/mobile-preview" className="w-full">
+              <ButtonLink href="/mock/hells-kitchen" className="w-full">
                 Join room
               </ButtonLink>
             </div>
